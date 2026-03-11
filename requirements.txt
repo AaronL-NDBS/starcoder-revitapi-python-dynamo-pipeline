@@ -1,0 +1,32 @@
+# revit-starcoder-pipeline requirements
+# Install with: pip install -r requirements.txt
+#
+# Note: torch install varies by CUDA version.
+# For CUDA 12.1 (recommended for RTX-series):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# Then install the rest:
+#   pip install -r requirements.txt
+
+# --- Scraping ---
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0                  # faster BS4 parser, optional but recommended
+
+# --- Data handling ---
+datasets>=2.18.0
+
+# --- Fine-tuning stack ---
+transformers>=4.40.0
+peft>=0.10.0                 # LoRA / QLoRA
+trl>=0.8.6                   # SFTTrainer
+bitsandbytes>=0.43.0         # 4-bit / 8-bit quantization
+accelerate>=0.29.0           # multi-GPU / mixed precision
+
+# --- PyTorch (see note above for CUDA-specific install) ---
+torch>=2.2.0
+
+# --- LLM judge via Claude API (optional) ---
+anthropic>=0.25.0
+
+# --- Utilities ---
+tqdm>=4.66.0                 # progress bars

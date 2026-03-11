@@ -8,6 +8,20 @@ The goal is a locally-deployable code model (via Ollama) that reliably generates
 single-purpose Python nodes for use in Dynamo — focused on clean, efficient 
 Revit API interactions using the `IN[]/OUT` pattern.
 
+## License
+Apache 2.0 — see [LICENSE](LICENSE)
+
+## Data Notice
+This pipeline scrapes publicly available forum and documentation content.
+The resulting dataset is not included in this repository. Users are responsible
+for complying with the terms of service of scraped sources.
+
+## Dependencies
+- StarCoder2 base model: BigCode/Apache 2.0
+- Hugging Face transformers/peft/trl: Apache 2.0
+- BeautifulSoup4: MIT
+- Requests: Apache 2.0
+
 ## What this does
 
 1. Scrapes Dynamo Forum, Stack Overflow, GitHub, and revitapidocs.com
