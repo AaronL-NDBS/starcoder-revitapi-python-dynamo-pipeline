@@ -4,29 +4,38 @@
 # Note: torch install varies by CUDA version.
 # For CUDA 12.1 (recommended for RTX-series):
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121
-# Then install the rest:
-#   pip install -r requirements.txt
 
-# --- Scraping ---
+# --- Scraping & HTML Parsing ---
 requests>=2.31.0
 beautifulsoup4>=4.12.0
-lxml>=5.1.0                  # faster BS4 parser, optional but recommended
+lxml>=5.1.0            # Faster parser for large-scale local HTML harvesting
 
-# --- Data handling ---
+# --- YouTube transcript scraping ---
+youtube-transcript-api>=0.6.2
+yt-dlp>=2024.1.1
+
+# --- PowerPoint extraction ---
+python-pptx>=0.6.23
+
+# --- Data handling & Analysis ---
 datasets>=2.18.0
+pandas>=2.2.0          # Useful for vetting the scraped_candidates.jsonl
 
 # --- Fine-tuning stack ---
 transformers>=4.40.0
-peft>=0.10.0                 # LoRA / QLoRA
-trl>=0.8.6                   # SFTTrainer
-bitsandbytes>=0.43.0         # 4-bit / 8-bit quantization
-accelerate>=0.29.0           # multi-GPU / mixed precision
+peft>=0.10.0
+trl>=0.8.6
+bitsandbytes>=0.43.0
+accelerate>=0.29.0
 
 # --- PyTorch (see note above for CUDA-specific install) ---
 torch>=2.2.0
 
-# --- LLM judge via Claude API (optional) ---
-anthropic>=0.25.0
+# --- LLM judge via Local Ollama ---
+# Since we are using requests to hit the Ollama API, the anthropic 
+# library is now optional/legacy for this specific pipeline.
+# ollama>=0.1.0        # Optional: if you prefer the official library over requests
 
 # --- Utilities ---
-tqdm>=4.66.0                 # progress bars
+tqdm>=4.66.0           # Essential for progress bars during long harvests
+python-dotenv>=1.0.0

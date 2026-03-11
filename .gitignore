@@ -3,9 +3,7 @@
 # =============================================================================
 
 # --- Dataset directories (never commit scraped or processed data) ---
-dataset/raw/
-dataset/cleaned/
-dataset/final_dataset.jsonl
+dataset
 
 # --- API keys / secrets (never commit config with real keys) ---
 # Commit config.py only as a template with YOUR_KEY placeholders

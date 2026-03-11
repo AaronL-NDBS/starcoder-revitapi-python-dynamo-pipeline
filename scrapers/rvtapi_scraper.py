@@ -1,76 +1,114 @@
-# scrapers/apidocs_scraper.py
-import requests, json, time
+# scrapers/rvtapi_local_harvester.py
+import os
+import subprocess
+import json
+import time
 from pathlib import Path
 from bs4 import BeautifulSoup
 
-BASE = "https://www.revitapidocs.com"
-
-# High-value pages to target directly — these cover the most common Dynamo node patterns
-TARGET_PATHS = [
-    "/2023/",                                          # index — links to classes
-    "/2023/eb16b9c3-c4fb-4268-840f-7dc72af6cb8a.htm", # FilteredElementCollector
-    "/2023/fdb6e9a2-6c63-4b2c-a9c3-88a0c01a213b.htm", # Transaction
-    "/2023/4e5f5b5a-1c7a-4e2a-b50d-56b4b8d3c2e1.htm", # Element
-    "/2023/8b9f5c3d-2e4a-4b6c-9d8e-7f2a1b3c4d5e.htm", # Wall
-    "/2023/6c7d8e9f-3f5b-4c6d-8e9f-1a2b3c4d5e6f.htm", # Floor
+# --- CONFIGURATION ---
+SDK_PATHS = [
+    Path(r"C:\Revit 2023 SDK"),
+    Path(r"C:\Revit 2023.1 SDK")
 ]
+# Paths relative to the /scrapers folder
+RAW_OUT_DIR = Path(r"..\dataset\raw\rvt_api_local")
+TEMP_EXTRACT_DIR = Path(r"..\dataset\temp_chm_extract")
 
-def scrape_class_page(url):
-    r = requests.get(url, headers={"User-Agent": "ResearchBot/1.0"})
-    soup = BeautifulSoup(r.text, "html.parser")
+RAW_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    class_name = soup.find("h1")
-    class_name = class_name.text.strip() if class_name else "Unknown"
-
-    # grab code examples
-    examples = []
-    for block in soup.find_all("pre"):
-        code = block.get_text()
-        if len(code) > 50:
-            examples.append(code)
-
-    # grab method descriptions
-    descriptions = []
-    for row in soup.find_all("tr"):
-        cells = row.find_all("td")
-        if len(cells) >= 2:
-            descriptions.append({
-                "member": cells[0].get_text(strip=True),
-                "description": cells[1].get_text(strip=True)
-            })
-
-    return {
-        "class": class_name,
-        "url": url,
-        "examples": examples,
-        "members": descriptions
-    }
-
-def scrape(output_dir, pages=5):
-    Path(output_dir).mkdir(exist_ok=True)
-    results = []
-
-    # first crawl the index to get class URLs
-    index = requests.get(f"{BASE}/2023/", headers={"User-Agent": "ResearchBot/1.0"})
-    soup = BeautifulSoup(index.text, "html.parser")
+def extract_chm(chm_path, extract_to):
+    """Uses Windows hh.exe to decompile the CHM file."""
+    print(f"\n--- Extracting {chm_path.parent.name} ---")
+    if extract_to.exists():
+        print(f"    Temp directory exists, skipping extraction...")
+        return
     
-    class_links = [
-        a["href"] for a in soup.find_all("a", href=True)
-        if "/2023/" in a["href"] and ".htm" in a["href"]
-    ][:200]  # cap at 200 classes
+    extract_to.mkdir(parents=True, exist_ok=True)
+    try:
+        # hh.exe -decompile <folder> <file>
+        subprocess.run(["hh.exe", "-decompile", str(extract_to), str(chm_path)], check=True)
+        print(f"    Extraction successful.")
+    except Exception as e:
+        print(f"    Extraction failed: {e}")
 
-    for path in class_links:
-        url = BASE + path if path.startswith("/") else path
-        try:
-            data = scrape_class_page(url)
-            if data["examples"] or len(data["members"]) > 3:
-                results.append(data)
-            time.sleep(0.75)
-        except Exception as e:
-            print(f"  Error {url}: {e}")
+def harvest_file(html_path):
+    """Extracts structured Revit API data from a local HTML file."""
+    try:
+        with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+            soup = BeautifulSoup(f.read(), "html.parser")
+        
+        # Check if this is a valid API member page
+        h1 = soup.find("h1")
+        if not h1: return None
+        
+        name = h1.text.strip()
+        
+        # Capture Namespace (Essential for StarCoder imports)
+        ns_div = soup.find("div", {"id": "namespace"})
+        namespace = ns_div.text.strip() if ns_div else "Autodesk.Revit.DB"
 
-    out = Path(output_dir) / "raw_apidocs.jsonl"
-    with open(out, "w") as f:
-        for r in results:
-            f.write(json.dumps(r) + "\n")
-    print(f"API docs done: {len(results)} classes scraped")
+        # Capture Summary
+        summary = ""
+        summary_div = soup.find("div", {"class": "summary"})
+        if summary_div: summary = summary_div.text.strip()
+
+        # Members Table (Methods/Properties/Fields)
+        members = []
+        for tr in soup.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) >= 2:
+                members.append({
+                    "n": cells[0].get_text(strip=True),
+                    "d": cells[1].get_text(strip=True)
+                })
+
+        return {
+            "name": name,
+            "namespace": namespace,
+            "summary": summary,
+            "members": members[:50],
+            "file": html_path.name
+        }
+    except:
+        return None
+
+def main():
+    for sdk in SDK_PATHS:
+        chm_file = sdk / "RevitAPI.chm"
+        if not chm_file.exists():
+            print(f"Skipping: {sdk.name} (CHM not found at {chm_file})")
+            continue
+
+        extract_path = TEMP_EXTRACT_DIR / sdk.name.replace(" ", "_")
+        extract_chm(chm_file, extract_path)
+
+        # Search for .htm AND .html recursively
+        files = list(extract_path.rglob("*.htm")) + list(extract_path.rglob("*.html"))
+        
+        # Filter: Revit API docs usually have GUID-like names or start with T_ (Type), M_ (Method), P_ (Property)
+        # We want to skip boilerplate like "html/toc.htm"
+        valid_files = [f for f in files if len(f.stem) > 10 or f.stem.startswith(('T_', 'M_', 'P_'))]
+        
+        print(f"Found {len(valid_files)} valid API pages. Harvesting...")
+
+        count = 0
+        for f in valid_files:
+            data = harvest_file(f)
+            if data and (data['summary'] or data['members']):
+                # Determine folder: Classes vs Enums
+                folder = "Enums" if "Enumeration" in data['name'] else "Classes"
+                out_path = RAW_OUT_DIR / sdk.name.replace(" ", "_") / folder
+                out_path.mkdir(parents=True, exist_ok=True)
+                
+                with open(out_path / f"{f.stem}.json", "w", encoding="utf-8") as out_f:
+                    json.dump(data, out_f, indent=2)
+                count += 1
+            
+            if count % 1000 == 0 and count > 0:
+                print(f"    Harvested {count} items...")
+
+    print(f"\nSUCCESS: Harvested {RAW_OUT_DIR}")
+
+if __name__ == "__main__":
+    main()
