@@ -88,6 +88,19 @@ def process_all(raw_dir, output_file):
                     "prompt": f"What are the members of the Revit API {r['class']} class?",
                     "completion": members_text
                 })
+    # --- Hand-crafted pairs (highest quality, skip quality filter) ---
+    hand_crafted_path = raw_dir.parent.parent / "dataset" / "hand_crafted.jsonl"
+    if hand_crafted_path.exists():
+        hc_count = 0
+        for line in open(hand_crafted_path):
+            r = json.loads(line)
+            pairs.append({
+                "prompt": r["prompt"],
+                "completion": r["completion"],
+                "_score": {"total": 10, "source": "hand_crafted"}
+            })
+            hc_count += 1
+        print(f"Hand-crafted pairs loaded: {hc_count}")            
 
     print(f"Formatted: {len(pairs)} training pairs")
     return len(pairs)
