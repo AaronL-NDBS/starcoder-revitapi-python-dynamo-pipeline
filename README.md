@@ -8,6 +8,17 @@ The goal is a locally-deployable code model (via Ollama) that reliably generates
 single-purpose Python nodes for use in Dynamo — focused on clean, efficient 
 Revit API interactions using the `IN[]/OUT` pattern.
 
+## Background
+See [PHILOSOPHY.md](PHILOSOPHY.md) for the intent and approach behind this project.
+If AI generated code/content rubs you the wrong way, please take the time to review this document.
+
+## What this does
+
+1. Scrapes Dynamo Forum, Stack Overflow, GitHub, and revitapidocs.com
+2. Extracts and normalizes Python code examples into prompt/completion pairs
+3. Filters low-quality records using an LLM judge (local via Ollama or Claude API)
+4. Outputs a clean JSONL dataset ready for QLoRA fine-tuning
+
 ## License
 Apache 2.0 — see [LICENSE](LICENSE)
 
@@ -21,13 +32,6 @@ for complying with the terms of service of scraped sources.
 - Hugging Face transformers/peft/trl: Apache 2.0
 - BeautifulSoup4: MIT
 - Requests: Apache 2.0
-
-## What this does
-
-1. Scrapes Dynamo Forum, Stack Overflow, GitHub, and revitapidocs.com
-2. Extracts and normalizes Python code examples into prompt/completion pairs
-3. Filters low-quality records using an LLM judge (local via Ollama or Claude API)
-4. Outputs a clean JSONL dataset ready for QLoRA fine-tuning
 
 ## Target output pattern
 
