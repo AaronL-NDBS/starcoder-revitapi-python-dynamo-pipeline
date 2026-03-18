@@ -60,3 +60,7 @@ logs/
 *.ckpt
 checkpoints/
 starcoder2-revit-finetuned/
+
+# --- AI Communication .md files ---
+DeepSeek/
+Qwen/

@@ -1,30 +1,31 @@
-# scrapers/youtube_scraper.py
-import json
+# youtube_scraper-Mistral.py
+import json, os, logging
 from pathlib import Path
-import yt_dlp
-from youtube_transcript_api import YouTubeTranscriptApi
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 RAW_DIR = Path("dataset/youtube/raw")
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-def scrape_yt():
-    url = input("Enter YouTube Playlist/Video URL: ")
-    ydl_opts = {'quiet': True, 'extract_flat': True}
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        entries = info.get('entries', [info])
-        
-    for entry in entries:
-        v_id = entry['id']
-        print(f"Fetching: {v_id}")
+def scrape_youtube_folder(folder_path):
+    files = list(Path(folder_path).rglob("*.json"))
+    for p in files:
+        logging.info(f"Scraping: {p.name}")
         try:
-            ts = YouTubeTranscriptApi.get_transcript(v_id)
-            full_text = " ".join([t['text'] for t in ts])
-            with open(RAW_DIR / f"{v_id}.json", "w") as f:
-                json.dump({"id": v_id, "title": entry.get('title'), "text": full_text}, f)
-        except:
-            print(f" No transcript for {v_id}")
+            with open(p, "r") as f:
+                data = json.load(f)
+            
+            new_data = {
+                "video_id": data.get("id"),
+                "transcript": data.get("text")
+            }
+            
+            with open(RAW_DIR / f"{p.stem}.json", "w") as f:
+                json.dump(new_data, f)
+        except Exception as e:
+            logging.error(f"  Error: {e}")
 
 if __name__ == "__main__":
-    scrape_yt()
+    path = input("Enter path to YouTube JSON folder: ").strip('"')
+    scrape_youtube_folder(path)

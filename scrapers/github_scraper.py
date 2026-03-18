@@ -6,7 +6,11 @@ import requests
 import json
 import time
 import base64
+import logging
 from pathlib import Path
+
+# Set up logging
+logging.basicConfig(filename='scraping.log', level=logging.INFO)
 
 # ── Targeted repos — pulled directly, not via search ─────────────────────────
 # These are known high-quality sources. Every .py file is fetched regardless
@@ -46,25 +50,33 @@ def get_repo_python_files(repo_full_name: str, headers: dict,
     results = []
 
     # get default branch
-    repo_info = requests.get(
-        f"https://api.github.com/repos/{repo_full_name}",
-        headers=headers
-    ).json()
-    branch = repo_info.get("default_branch", "main")
+    try:
+        repo_info = requests.get(
+            f"https://api.github.com/repos/{repo_full_name}",
+            headers=headers
+        ).json()
+        branch = repo_info.get("default_branch", "main")
+    except requests.RequestException as e:
+        logging.error(f"Error fetching repo info for {repo_full_name}: {e}")
+        return results
 
     # get full file tree
-    tree = requests.get(
-        f"https://api.github.com/repos/{repo_full_name}/git/trees/{branch}",
-        headers=headers,
-        params={"recursive": "1"}
-    ).json()
+    try:
+        tree = requests.get(
+            f"https://api.github.com/repos/{repo_full_name}/git/trees/{branch}",
+            headers=headers,
+            params={"recursive": "1"}
+        ).json()
+    except requests.RequestException as e:
+        logging.error(f"Error fetching tree for {repo_full_name}: {e}")
+        return results
 
     py_files = [
         item for item in tree.get("tree", [])
         if item["path"].endswith(".py") and item["type"] == "blob"
     ][:max_files]
 
-    print(f"    {repo_full_name}: {len(py_files)} .py files found")
+    logging.info(f"    {repo_full_name}: {len(py_files)} .py files found")
 
     for item in py_files:
         try:
@@ -89,7 +101,7 @@ def get_repo_python_files(repo_full_name: str, headers: dict,
             })
             time.sleep(0.5)
         except Exception as e:
-            print(f"      Error {item['path']}: {e}")
+            logging.error(f"      Error {item['path']}: {e}")
 
     return results
 
@@ -100,23 +112,23 @@ def scrape(output_dir: str, token: str):
     results = []
 
     # ── Phase 1: Targeted repos ───────────────────────────────────────────
-    print("\n  Phase 1: Targeted repos")
+    logging.info("\n  Phase 1: Targeted repos")
     for repo_name in TARGET_REPOS:
-        print(f"  Fetching {repo_name}...")
+        logging.info(f"  Fetching {repo_name}...")
         try:
             files = get_repo_python_files(repo_name, headers)
             # targeted repos: keep all Revit-relevant files, not just Dynamo nodes
             relevant = [f for f in files if is_relevant(f["content"])]
             results.extend(relevant)
-            print(f"    Kept {len(relevant)}/{len(files)} relevant files")
+            logging.info(f"    Kept {len(relevant)}/{len(files)} relevant files")
         except Exception as e:
-            print(f"    Error fetching {repo_name}: {e}")
+            logging.error(f"    Error fetching {repo_name}: {e}")
         time.sleep(2)
 
-    print(f"\n  Targeted repos total: {len(results)} files")
+    logging.info(f"\n  Targeted repos total: {len(results)} files")
 
     # ── Phase 2: Search queries ───────────────────────────────────────────
-    print("\n  Phase 2: Search queries")
+    logging.info("\n  Phase 2: Search queries")
     for query in SEARCH_QUERIES:
         try:
             repos = requests.get(
@@ -124,8 +136,8 @@ def scrape(output_dir: str, token: str):
                 headers=headers,
                 params={"q": query, "sort": "stars", "per_page": 20}
             ).json().get("items", [])
-        except Exception as e:
-            print(f"  Search error '{query}': {e}")
+        except requests.RequestException as e:
+            logging.error(f"  Search error '{query}': {e}")
             time.sleep(5)
             continue
 
@@ -157,13 +169,13 @@ def scrape(output_dir: str, token: str):
                             })
                         time.sleep(1)
                     except Exception as e:
-                        print(f"    Error {file['name']}: {e}")
+                        logging.error(f"    Error {file['name']}: {e}")
 
             except Exception as e:
-                print(f"  Repo error {repo['full_name']}: {e}")
+                logging.error(f"  Repo error {repo['full_name']}: {e}")
             time.sleep(1)
 
-        print(f"  Query done: {len(results)} total so far")
+        logging.info(f"  Query done: {len(results)} total so far")
         time.sleep(3)  # avoid secondary rate limit between queries
 
     # ── Write output ──────────────────────────────────────────────────────
@@ -174,5 +186,5 @@ def scrape(output_dir: str, token: str):
 
     targeted = sum(1 for r in results if r["source"] == "github_targeted")
     searched = sum(1 for r in results if r["source"] == "github_search")
-    print(f"\n  GitHub done: {len(results)} total "
+    logging.info(f"\n  GitHub done: {len(results)} total "
           f"({targeted} targeted, {searched} from search)")
